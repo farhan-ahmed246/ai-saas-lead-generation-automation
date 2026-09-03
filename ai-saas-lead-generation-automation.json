@@ -1,0 +1,423 @@
+{
+  "name": "AI SaaS Lead Generation & Qualification Automation",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "saas-lead-generation",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "1",
+      "name": "Lead Capture Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        -800,
+        0
+      ],
+      "webhookId": "saas-lead-generation"
+    },
+    {
+      "parameters": {
+        "jsCode": "const body = $json.body ?? $json;\n\nconst lead = {\n  name: String(body.name ?? '').trim(),\n  email: String(body.email ?? '').trim().toLowerCase(),\n  company: String(body.company ?? '').trim(),\n  jobTitle: String(body.jobTitle ?? '').trim(),\n  website: String(body.website ?? '').trim(),\n  industry: String(body.industry ?? '').trim(),\n  companySize: Number(body.companySize ?? 0),\n  message: String(body.message ?? '').trim(),\n  source: String(body.source ?? 'website').trim(),\n  receivedAt: new Date().toISOString()\n};\n\nconst errors = [];\nif (!lead.name) errors.push('Name is required');\nif (!/^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/.test(lead.email)) errors.push('A valid email is required');\n\nreturn [{\n  json: {\n    ...lead,\n    valid: errors.length === 0,\n    validationErrors: errors\n  }\n}];"
+      },
+      "id": "2",
+      "name": "Validate Lead",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -560,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "boolean": [
+            {
+              "value1": "={{ $json.valid }}",
+              "operation": "isTrue"
+            }
+          ]
+        }
+      },
+      "id": "3",
+      "name": "Valid Lead?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        -320,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const lead = $json;\n\n// Demo duplicate check.\n// Replace this node with a real CRM/Google Sheets/database lookup in production.\nconst duplicate = false;\n\nreturn [{\n  json: {\n    ...lead,\n    duplicate\n  }\n}];"
+      },
+      "id": "4",
+      "name": "Duplicate Check",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -80,
+        -120
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "boolean": [
+            {
+              "value1": "={{ $json.duplicate }}",
+              "operation": "isFalse"
+            }
+          ]
+        }
+      },
+      "id": "5",
+      "name": "New Lead?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        160,
+        -120
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const lead = $json;\n\nlet score = 0;\n\nif (lead.email) score += 10;\nif (lead.company) score += 15;\nif (lead.jobTitle) score += 15;\nif (lead.website) score += 10;\nif (lead.industry) score += 10;\nif (lead.message.length >= 30) score += 15;\nif (lead.companySize >= 50) score += 15;\nif (lead.companySize >= 200) score += 10;\n\nlet priority = 'Low';\nlet route = 'Nurture';\n\nif (score >= 70) {\n  priority = 'High';\n  route = 'Sales';\n} else if (score >= 45) {\n  priority = 'Medium';\n  route = 'SDR';\n}\n\nreturn [{\n  json: {\n    ...lead,\n    leadScore: score,\n    priority,\n    route,\n    status: 'Qualified',\n    aiTask: `Create a concise, personalized sales message for ${lead.name} at ${lead.company}. Their role is ${lead.jobTitle}. Industry: ${lead.industry}. Their message is: ${lead.message}`\n  }\n}];"
+      },
+      "id": "6",
+      "name": "AI Lead Scoring",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        400,
+        -120
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const lead = $json;\n\nreturn [{\n  json: {\n    ...lead,\n    crmRecord: {\n      name: lead.name,\n      email: lead.email,\n      company: lead.company,\n      jobTitle: lead.jobTitle,\n      website: lead.website,\n      industry: lead.industry,\n      companySize: lead.companySize,\n      source: lead.source,\n      score: lead.leadScore,\n      priority: lead.priority,\n      route: lead.route,\n      status: lead.status,\n      createdAt: lead.receivedAt\n    }\n  }\n}];"
+      },
+      "id": "7",
+      "name": "Prepare CRM Record",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        640,
+        -120
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "string": [
+            {
+              "value1": "={{ $json.priority }}",
+              "operation": "equals",
+              "value2": "High"
+            }
+          ]
+        }
+      },
+      "id": "8",
+      "name": "High Priority?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        880,
+        -120
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const lead = $json;\n\nreturn [{\n  json: {\n    ...lead,\n    salesNotification: `HIGH PRIORITY LEAD: ${lead.name} | ${lead.company} | Score: ${lead.leadScore}`,\n    nextAction: 'Immediate sales follow-up',\n    followUpType: 'Personalized outreach'\n  }\n}];"
+      },
+      "id": "9",
+      "name": "Route to Sales",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1120,
+        -220
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const lead = $json;\n\nreturn [{\n  json: {\n    ...lead,\n    salesNotification: `LEAD: ${lead.name} | ${lead.company} | Score: ${lead.leadScore} | Priority: ${lead.priority}`,\n    nextAction: lead.priority === 'Medium'\n      ? 'SDR follow-up within 24 hours'\n      : 'Add to nurture sequence',\n    followUpType: lead.priority === 'Medium'\n      ? 'SDR follow-up'\n      : 'Automated nurture'\n  }\n}];"
+      },
+      "id": "10",
+      "name": "Route to SDR or Nurture",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1120,
+        -20
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const lead = $json;\n\nreturn [{\n  json: {\n    success: true,\n    processedAt: new Date().toISOString(),\n    lead: {\n      name: lead.name,\n      email: lead.email,\n      company: lead.company\n    },\n    qualification: {\n      score: lead.leadScore,\n      priority: lead.priority,\n      route: lead.route\n    },\n    nextAction: lead.nextAction,\n    message: 'Lead processed successfully'\n  }\n}];"
+      },
+      "id": "11",
+      "name": "Build Success Response",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1360,
+        -120
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ $json }}",
+        "options": {}
+      },
+      "id": "12",
+      "name": "Return Success",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [
+        1600,
+        -120
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "return [{\n  json: {\n    success: false,\n    message: 'Lead validation failed',\n    errors: $json.validationErrors ?? ['Invalid lead data']\n  }\n}];"
+      },
+      "id": "13",
+      "name": "Build Validation Error",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -80,
+        220
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ $json }}",
+        "options": {
+          "responseCode": 400
+        }
+      },
+      "id": "14",
+      "name": "Return Validation Error",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [
+        160,
+        220
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "return [{\n  json: {\n    success: true,\n    duplicate: true,\n    message: 'Lead already exists. No duplicate processing was performed.',\n    email: $json.email\n  }\n}];"
+      },
+      "id": "15",
+      "name": "Handle Duplicate",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        400,
+        220
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ $json }}",
+        "options": {}
+      },
+      "id": "16",
+      "name": "Return Duplicate",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [
+        640,
+        220
+      ]
+    }
+  ],
+  "connections": {
+    "Lead Capture Webhook": {
+      "main": [
+        [
+          {
+            "node": "Validate Lead",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Validate Lead": {
+      "main": [
+        [
+          {
+            "node": "Valid Lead?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Valid Lead?": {
+      "main": [
+        [
+          {
+            "node": "Duplicate Check",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Build Validation Error",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Duplicate Check": {
+      "main": [
+        [
+          {
+            "node": "New Lead?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "New Lead?": {
+      "main": [
+        [
+          {
+            "node": "AI Lead Scoring",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Handle Duplicate",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI Lead Scoring": {
+      "main": [
+        [
+          {
+            "node": "Prepare CRM Record",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare CRM Record": {
+      "main": [
+        [
+          {
+            "node": "High Priority?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "High Priority?": {
+      "main": [
+        [
+          {
+            "node": "Route to Sales",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Route to SDR or Nurture",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Route to Sales": {
+      "main": [
+        [
+          {
+            "node": "Build Success Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Route to SDR or Nurture": {
+      "main": [
+        [
+          {
+            "node": "Build Success Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Success Response": {
+      "main": [
+        [
+          {
+            "node": "Return Success",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Validation Error": {
+      "main": [
+        [
+          {
+            "node": "Return Validation Error",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Handle Duplicate": {
+      "main": [
+        [
+          {
+            "node": "Return Duplicate",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "pinData": {},
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "ai-saas-lead-generation-v1",
+  "meta": {
+    "templateCredsSetupCompleted": false
+  },
+  "tags": []
+}
